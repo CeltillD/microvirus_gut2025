@@ -12,7 +12,7 @@
 
 #   AUTHOR :   Celtill DUMONT (BIOADAPT,LMGE)
 #   DATE    :   14 - 02 - 2025
-#   SCRIPT  :   01_Fastp_trimming_CD_14-02-25.slurm
+#   SCRIPT  :   fastp_trimming.slurm
 #   TOOLS   :   rclone (v1.55.1-DEV), fastp (v0.20.1)
 
 #######################################################################################
