@@ -7,10 +7,9 @@ import warnings
 warnings.filterwarnings("ignore", message="Bio.pairwise2 has been deprecated")
 from Bio import pairwise2
 
-CONTIG_FILE,VIROME_NAME=sys.argv[1],sys.argv[2]                 # fichier fasta et nom du virome
-WORKDIR = "/data/DATABASES/"                                    # travail dans un répertoire
-
-os.system(f'mkdir -p {WORKDIR}STATS')                           # répertoire pour enregistrer les comptages pour les viromes
+WORKDIR,CONTIG_FILE,VIROME_NAME=sys.argv[1],sys.argv[2],sys.argv[3]             # repertoire de travail, fichier fasta et nom du virome
+                                   
+os.system(f'mkdir -p {WORKDIR}STATS')                                           # répertoire pour enregistrer les comptages pour les viromes
 
 FILES = {'Fasta_S1' : f'{WORKDIR}tmp_{VIROME_NAME}.fna',                        # fna contenant les contigs 2 à 10 kb
          'VP1_S2'   : f'{WORKDIR}tmp_VP1_{VIROME_NAME}.tsv',                    # resultats du blastx contre VP1
@@ -108,21 +107,25 @@ def step_1() :
         global NTOT
         global NLEN 
         global NCIR
-        for line in f1s1 :
-            line = line.rstrip()
-            if line.startswith(">") :                           # >k127_0 flag=0 multi=9.0 len=225
-                NTOT += 1
-                clause_L = 0                                    # clause de taille du contig
-                l = line.split()
-                Id = str(l[0].replace(">","").split("_")[1])
-                Len = int(l[3].replace("len=",""))
-                if Len >= 2000 and Len <= 10000 :               # critère de taille
-                    clause_L = 1
-                    NLEN += 1
-            else :
-                if clause_L == 1 :
-                    ContigId = VIROME_NAME + "_" + Id + "_" + str(Len)
-                    Dfna[ContigId]=str(line).upper()
+        id = None
+        seq = []
+        seq_complete = ""
+        for ligne in f1s1:
+            ligne = ligne.strip()
+            if ligne.startswith(">"):                       # >k127_0 flag=0 multi=9.0 len=225 
+                l = ligne.split()
+                if id is not None:  
+                    seq_complete = "".join(seq)
+                    if 2000 <= len(seq_complete) <= 10000 : # critère de taille
+                        Dfna[id] = seq_complete
+                id = VIROME_NAME + "_" + str(l[0].replace(">","").split("_")[1]) + "_" + str(seq_complete)
+                seq = []  
+            else:
+                seq.append(ligne)  
+        if id is not None:                                  # pour la dernière séquence du fasta
+            seq_complete = "".join(seq)
+            if 2000 <= len(seq_complete) <= 10000:
+                Dfna[id] = seq_complete
 
     with open(FILES['Fasta_S1'],'w') as f2s1 :
         for Contig,Seq in Dfna.items() :
@@ -328,7 +331,7 @@ def run_all() :
 
     print(f'START - {VIROME_NAME}')
     
-    counts = step_1()                                           # création FNA contigs 2-10kb et décircularisés
+    counts = step_1()                                           # création FNA contigs 2-10kb et decircularises
     ExecShellCommand(FILES['Fasta_S1'], SHELL['Blastx_VP1'])    # Blastx de ces contigs contre VP1.faa
     ExecShellCommand(FILES['Fasta_S1'], SHELL['Blastx_VP4'])    # Blastx de ces contigs contre VP4.faa
     counts.append(step_2())                                     # création FNA des contigs complets
@@ -344,6 +347,7 @@ def run_all() :
         # virome01  nb_total    nb_2-10kb   nb_cir  nb_complets nb_capsides
 
     # NETTOYAGE FICHIERS ET REPERTOIRES
+
     os.system(f'rm -rf {WORKDIR}tmp_*{VIROME_NAME}*')
     
     print(f'END - {VIROME_NAME}')
