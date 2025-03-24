@@ -113,11 +113,13 @@ def step_1() :
         for ligne in f1s1:
             ligne = ligne.strip()
             if ligne.startswith(">"):                       # >k127_0 flag=0 multi=9.0 len=225 
+                NTOT += 1
                 l = ligne.split()
                 if id is not None:  
                     seq_complete = "".join(seq)
                     if 2000 <= len(seq_complete) <= 10000 : # critère de taille
                         Dfna[id] = seq_complete
+                        NLEN += 1
                 id = VIROME_NAME + "_" + str(l[0].replace(">","").split("_")[1]) + "_" + str(seq_complete)
                 seq = []  
             else:
