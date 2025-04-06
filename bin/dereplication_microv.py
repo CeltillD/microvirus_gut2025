@@ -23,6 +23,7 @@ def read_fasta(file_fasta) :
     Dfna    = defaultdict(str)
     DnewId  = {}
     ngut    = 0 
+    navrc   = 0
     with open(file_fasta) as f1 :                                                      
         for l in f1 : 
             l = l.rstrip()
@@ -34,7 +35,8 @@ def read_fasta(file_fasta) :
                     DnewId[g] = newId 
 
                 if g.startswith("AVrC"):                                            # idem pour les génomes de AVrC 
-                    newId  = "A_"+"_".join(g.split("_")[1:4]).replace("_XX","")     # AVrC_GutCatV1_XX_c3442_VP1-4_Cir5528_GC418_Cap2046
+                    navrc += 1
+                    newId  = "A_"+"_".join(g.split("_")[1:2])+"_c"+str(navrc)      # AVrC_GutCatV1_XX_c3442_VP1-4_Cir5528_GC418_Cap2046
                     DnewId[g] = newId                                                 # new ID : A_GutCatV1_c3442
 
                 if g.startswith("REF"):                                             # REF13k_EAF_DB_IMGmg_3300010885-c3
@@ -100,7 +102,7 @@ def single_linkage(clusters):                                               # Cl
                     new_cluster |= set(other_cluster)
                     merged.add(j)
             new_clusters.append(new_cluster)
-        if len(new_clusters) == len(clusters):                              # taille finale des clusters
+        if len(new_clusters) == len(clusters):                              # taille finale des clusters
             return new_clusters
         clusters = new_clusters
 
@@ -122,8 +124,8 @@ def dereplicate(df, DnewId):
 
     clusters = single_linkage(couples)                                          # application du single linkage sur ces couples
 
-    for c in clusters :                                                   # séléction des génomes représentatifs
-            c_sorted = sorted(c, key=lambda x: (not x.startswith("G"), x)) # tri du cluster : génome "GUT" en premier   
+    for c in clusters :                                                   # séléction des génomes représentatifs
+            c_sorted = sorted(c, key=lambda x: (not x.startswith("G"), x)) # tri du cluster : génome "GUT" en premier   
             Gref  = next(iter(c_sorted))
             Dclust[Gref] = c_sorted
     return Dclust
@@ -145,11 +147,11 @@ def crea_files(type, Dclust, df_viridic, Dfna, DnewId) :
         for g in Dclust.keys() :
             print(f'>{g}\n{Dfna[g]}', file = f1)                             # création d'un nouveau fasta avec génomes dérépliqués
 
-    with open(Dfiles["name_f2"],'w') as f2 :              # fichier liant ancien ID et nouvel ID
+    with open(Dfiles["name_f2"],'w') as f2 :              # fichier liant ancien ID et nouvel ID
         for i in DnewId :
             print(i, DnewId[i], sep="\t", file = f2)
     
-    with open(Dfiles["name_f3"],'w') as f3 :                   # fichier avec génome de référence -> liste de génomes identiques (dérépliqués)
+    with open(Dfiles["name_f3"],'w') as f3 :                   # fichier avec génome de référence -> liste de génomes identiques (dérépliqués)
 
         with open(Dfiles["name_f4"],'w') as f4 :
 
@@ -168,8 +170,8 @@ def crea_files(type, Dclust, df_viridic, Dfna, DnewId) :
     with open(Dfiles["name_f5"],'w') as f5 :
         print('gA', 'gB', 'lenA', 'lenB', 'sim%', 'dist%', 'nb_idAB', 'nb_idBA', 'nb_aliA', 'nb_aliB', 'fracAliA', 'fracAliB', 'ratioLen', 'ANI_AB', sep = "\t", file = f5)
         for row in df_viridic.itertuples(index=False):
-            ga = DnewId[row["gA"]]
-            gb = DnewId[row["gB"]]
+            ga = DnewId[row[0]]
+            gb = DnewId[row[1]]
             if ga in Dclust.keys() and gb in Dclust.keys() and ga != gb:
                 filtered_row = row._asdict()  
                 del filtered_row['gA']
