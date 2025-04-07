@@ -120,7 +120,7 @@ def step_1() :
                     if 2000 <= len(seq_complete) <= 10000 : # critère de taille
                         Dfna[id] = seq_complete
                         NLEN += 1
-                id = VIROME_NAME + "_" + str(l[0].replace(">","").split("_")[1]) + "_" + str(seq_complete)
+                id = VIROME_NAME + "_" + str(l[0].replace(">","").split("_")[1]) + "_" + str(len(seq_complete))
                 seq = []  
             else:
                 seq.append(ligne)  
