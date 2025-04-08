@@ -7,7 +7,7 @@ from collections import defaultdict
 
 ### Initialisation des variables ###
 
-OUTDIR,VIRIDIC_TSV,FNA = sys.argv[1],sys.argv[2],sys.argv[3]
+OUTDIR,VIRIDIC_TSV,FNA,PRO = sys.argv[1],sys.argv[2],sys.argv[3],sys.argv[4]
 
 ### Définition des Fonctions ###
 
@@ -50,19 +50,32 @@ def prob_genomes(df,DnewId):
     """
     INPUT : dataframe de resultats VIRIDIC (df) et dico des nouveaux identifiants de génome (DnewId)
     |
-    -> relève les couples de génomes ayant des critères anormaux (forte identité mais couverture très différente)
+    -> identifie les prophages et lie les génomes apparentés dans un dico (Dpro)
+    -> relève les couples de génomes ayant des critères anormaux (forte identité mais taille très différente)
     -> pour chaque génome on relève son nombre d'occurence dans les couples problématiques (Docc)
     -> pour chaque couple problématique, j'ajoute le génome ayant le plus d'occurence des deux à un set de génomes anormaux (probGenomes)
     |
     OUTPUT : renvoie le set d'identifiants de génomes anormaux (probGenomes)
     """
+    Dpro = {}
     Docc = {}
     probGenomes = set()
 
+    with open(PRO,'r') as pro :
+        for l in pro :
+            l = l.rstrip()
+            Dpro["REF13k_"+l] = []
+            probGenomes.add("REF13k_"+l)
+    
+    for _, row in df.iterrows():
+        if row['gA'] in Dpro.keys():
+            Dpro[row['gA']].append(row['gB'])
+        elif row['gB'] in Dpro.keys():
+            Dpro[row['gB']].append(row['gA'])
+
     df_prob = df[
-        (df["ANI_AB"] > 80) & (                                                # Si ANI entre A -> B élevé :
-        ((df["fracAliA"] > 0.8) & (df["fracAliB"] < 0.6)) |                    # un couple de génome est problématique lorsqu'il y a une différence significative des fractions alignées
-        ((df["fracAliA"] < 0.6) & (df["fracAliB"] > 0.8)))
+        (df["ANI_AB"] > 70) &                                               # Si ANI entre A -> B élevé :
+        ((df["ratioLen"] < 0.70))
     ]
     probPotentiels = pd.concat([df_prob["gA"], df_prob["gB"]]).unique()         # liste des génomes potentiellement problématiques
     for pp in probPotentiels :                                                  # comptage de leur nombre d'occurences problématiques
@@ -76,7 +89,7 @@ def prob_genomes(df,DnewId):
         else :                                                                    # si meme nombre d'occurences
             probGenomes.add(DnewId[gA])
             probGenomes.add(DnewId[gB])
-    return probGenomes
+    return probGenomes,Dpro
 
 def single_linkage(clusters):                                               # Clustering Single Linkage        
     """
@@ -130,7 +143,7 @@ def dereplicate(df, DnewId):
             Dclust[Gref] = c_sorted
     return Dclust
 
-def crea_files(type, Dclust, df_viridic, Dfna, DnewId) :
+def crea_files(type, Dclust, Dfna, DnewId, Dpro, df_filtred) :
 
     os.system(f'mkdir -p {OUTDIR}/{type}')
 
@@ -140,7 +153,8 @@ def crea_files(type, Dclust, df_viridic, Dfna, DnewId) :
         "name_f2" : f'{OUTDIR}/{type}/{type}_genomes_ids.tsv',
         "name_f3" : f'{OUTDIR}/{type}/{type}_clusters.tsv',
         "name_f4" : f'{OUTDIR}/{type}/{type}_counts_gut25.tsv',
-        "name_f5" : f'{OUTDIR}/{type}/{type}_VIRIDIC.tsv'
+        "name_f5" : f'{OUTDIR}/{type}/{type}_VIRIDIC.tsv',
+        "name_f6" : f'{OUTDIR}/{type}/{type}_prophages.tsv'
     }
     
     with open(Dfiles["name_f1"],'w') as f1 :
@@ -169,7 +183,7 @@ def crea_files(type, Dclust, df_viridic, Dfna, DnewId) :
     
     with open(Dfiles["name_f5"],'w') as f5 :
         print('gA', 'gB', 'lenA', 'lenB', 'sim%', 'dist%', 'nb_idAB', 'nb_idBA', 'nb_aliA', 'nb_aliB', 'fracAliA', 'fracAliB', 'ratioLen', 'ANI_AB', sep = "\t", file = f5)
-        for row in df_viridic.itertuples(index=False):
+        for row in df_filtred.itertuples(index=False):
             ga = DnewId[row[0]]
             gb = DnewId[row[1]]
             if ga in Dclust.keys() and gb in Dclust.keys() and ga != gb:
@@ -178,6 +192,13 @@ def crea_files(type, Dclust, df_viridic, Dfna, DnewId) :
                 del filtered_row['gB']
                 print(ga, gb, *filtered_row.values(), sep="\t", file=f5)
 
+    with open(Dfiles['name_f6'],'w') as f6 :
+        for prophage in Dpro.keys():
+            if len(Dpro[prophage]) > 1 :
+                print(prophage, ";".join(Dpro[prophage][1:]), sep="\t", file=f6)
+            else :
+                print(prophage, file = f6)
+                
 ### EXECUTION DU SCRIPT ###
 
 DFNA,DNEW = read_fasta(FNA)
@@ -185,7 +206,7 @@ DFNA,DNEW = read_fasta(FNA)
 DF_ORI = pd.read_csv(VIRIDIC_TSV, sep='\t')                                     # chargement du TSV en df pandas
 DF_ORI['ANI_AB'] = (DF_ORI['nb_idAB'] * 100) / DF_ORI['nb_aliA']                        # ajout d'une colonne pour calculer l'ANI de A sur B (très proche de ANI de B sur A)
 
-PROB = prob_genomes(DF_ORI,DNEW)
+PROB,DPRO = prob_genomes(DF_ORI,DNEW)
 
 DF1  = DF_ORI[
     ((~DF_ORI['gA'].isin(PROB))|(~DF_ORI['gB'].isin(PROB))) &                   # on garde seulement les génomes représentatifs                                                                  
@@ -198,5 +219,5 @@ DF2  = DF_ORI[
     (DF_ORI["fracAliA"] >= 0.99) &
     (DF_ORI["fracAliB"] >= 0.99) ]                                              # ratio des longueurs égal
 
-crea_files("IDENTICAL", dereplicate(DF1,DNEW), DF_ORI, DFNA, DNEW)
-crea_files("GENOMOVAR", dereplicate(DF2,DNEW), DF_ORI, DFNA ,DNEW)
+crea_files("IDENTICAL", dereplicate(DF1,DNEW), DFNA, DNEW, DPRO, DF1)
+crea_files("GENOMOVAR", dereplicate(DF2,DNEW), DFNA ,DNEW, DPRO, DF2)
