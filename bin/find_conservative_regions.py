@@ -85,8 +85,8 @@ def calc_identity(Dfma) :
                 seqX = Dfma[x]                                                  # récupération des séquences alignées
                 seqY = Dfma[y]
                 for i in range(len(Dfma[x])) :                                  # parcours des positions de l'alignement (len(Dfma[x] == len(Dfma[y])
-                    if seqX[i] != "-" or seqY[i] != "-" :
-                        nbAln += 1                                              # si l'une des deux position n'est pas vide
+                    if seqX[i] != "-" and seqY[i] != "-" :
+                        nbAln += 1                                              # si les deux position ne sont pas vides
                         clause = True                                           
                         if seqX[i] == seqY[i] :                                 # si les deux bases à la meme position sont identiques
                             nbId += 1                                           
