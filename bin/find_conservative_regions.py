@@ -1,10 +1,29 @@
 #!/usr/bin/env python3
 
+############
+
+# NOM      : find_conservative_regions.py 
+# DATE     : 03-06-2025
+# FONCTION : Détécter les régions conservées dans les alignements de Cap et Rep (AA et NT) et calculer les scores d'identités associés 
+# AUTEUR   : Dumont C. (M2BI, BIOADAPT, LMGE)
+# VERSION  : Python 3.12.2 [GCC 12.3.0]
+# PACAKGES : Bio = 1.85
+# NB       : Ce script requiert 3 fichiers au préalable (ex : capsidesAA.msa repAA.msa all_genes.fna)
+
+############
+
 from collections import defaultdict
 from Bio import AlignIO
 import sys
 
 def define_mask(fileMSA):
+    """
+    Input : MSA_PROTS(cap ou rep)
+    Objectifs :
+    -> intégrer les alignements multiples des séquences protéiques
+    -> définir un "masque" en fonction du seuil (positions conservées)
+    Sorties : nombre de colonnes; MSA des Cap/ou/Rep; masque (vecteur booléen)
+    """
     proteinsFMA={}
     alignement       = AlignIO.read(fileMSA, "fasta")			    # lecture du fichier MSA
     nombre_sequences = len(alignement) 
@@ -15,7 +34,7 @@ def define_mask(fileMSA):
         colonne = alignement[:, i]  								# Récupérer tous les caractères de la colonne
         gaps = colonne.count("-")	                                # Récupération du nombre de gaps				
         freqSSgap = (nombre_sequences - gaps) / nombre_sequences    # ratio de fréquence
-        if freqSSgap > SEUIL:										# on repère les colonnes du MSA qui ont moins de seuil-100 % de gaps
+        if freqSSgap > SEUIL:										# on repère les colonnes du MSA qui ont moins de x% de gaps
             mask.append(True)
         else:
             mask.append(False)
@@ -32,6 +51,18 @@ def define_mask(fileMSA):
     return [nbCol_MSA, proteinsFMA, mask]                           
 
 def conservative_regions(Linfo) :                           # Linfo correspond à la liste d'outpout de la fonction define_mask()
+    """
+    Input : [nbCol_MSA, proteinsFMA, mask] 
+    Objectifs : 
+    -> pour chaque protéine détecter les régions conservées sur la base du masque
+    -> pour chaque position conservée, récupération du codon NT
+    -> constitution des séquences conservées de chaque protéines en AA et NT
+    Sorties : 
+    -> DconsFaa    : [id] = séquences avec régions conservés en AA
+    -> DconsFna    : [id] = séquences avec régions conservés en NT
+    -> DglobFna    : [id] = séquences globales en NT
+    -> proteinsFMA : [id] = séquences globales en AA
+    """
     nbCol_MSA   = Linfo[0]                                  # nombre de positions
     proteinsFMA = Linfo[1]                                  # Dico d'alignement multiple global AA
     mask        = Linfo[2]                                  # vecteur bool des positions conservées
@@ -67,6 +98,11 @@ def conservative_regions(Linfo) :                           # Linfo correspond �
     return DconsFaa, DconsFna, DglobFna, proteinsFMA        # retourne les 4 dicos (conservés / global avec AA / NT)
 
 def calc_identity(Dfma) :
+    """
+    Input    : Dico de séquences
+    Objectif : Caculer pour chaque couple de séquences un score d'identité
+    Sortie   : Dico avec un score d'identité pour chaque couple
+    """
     Dscore = defaultdict(float)                                                 # associe un couple de génome à son score d'identité 
     Lseen  = set()                                                              # set de couples déja parcourus 
 	
@@ -100,8 +136,10 @@ def calc_identity(Dfma) :
 				
     return Dscore                                                               # renvoie le dico de score d'identité pour ces couples
 
-if __name__ == "__main__":
-
+if __name__ == "__main__":							# lancement du script
+    if len(sys.argv) < 4 :
+        print("Ustilisation : ./find_conservative_regions.py <int[0-100]> <capsidesAA.msa> <repAA.msa> <all_genes.fna>")
+	
     SEUIL       = int(sys.argv[1])/100                                          # seuil minimal pour déterminer les régions conservées
     CAP_GLOB_FAA= sys.argv[2]                                                   # fichier d'alignement multiple des prot de capside
     REP_GLOB_FAA= sys.argv[3]                                                   # fichier d'alignement multiple des prot de replication
